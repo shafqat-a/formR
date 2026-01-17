@@ -7,9 +7,6 @@ Console.WriteLine("========================\n");
 var apiBaseUrl = Environment.GetEnvironmentVariable("API_URL") ?? "http://localhost:5000";
 var httpClient = new HttpClient { BaseAddress = new Uri(apiBaseUrl) };
 
-// For testing without auth, we'll need to set a dummy tenant header
-httpClient.DefaultRequestHeaders.Add("X-Tenant-Id", Guid.NewGuid().ToString());
-
 Console.WriteLine($"API Base URL: {apiBaseUrl}");
 Console.WriteLine($"Testing API connectivity...\n");
 
