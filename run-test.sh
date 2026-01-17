@@ -46,28 +46,63 @@ print_error() {
     echo -e "${RED}✗${NC} $1"
 }
 
+kill_port_process() {
+    local PORT=$1
+    local SERVICE_NAME=$2
+
+    # Try using lsof first (macOS/Linux)
+    if command -v lsof &> /dev/null; then
+        local PID=$(lsof -ti:$PORT 2>/dev/null)
+        if [ ! -z "$PID" ]; then
+            print_warning "Port $PORT is in use by PID $PID, killing it..."
+            kill -9 $PID 2>/dev/null || true
+            sleep 1
+            print_info "Killed process on port $PORT"
+        fi
+    # Try using netstat for Linux
+    elif command -v netstat &> /dev/null; then
+        local PID=$(netstat -tlnp 2>/dev/null | grep ":$PORT " | awk '{print $7}' | cut -d'/' -f1)
+        if [ ! -z "$PID" ]; then
+            print_warning "Port $PORT is in use by PID $PID, killing it..."
+            kill -9 $PID 2>/dev/null || true
+            sleep 1
+            print_info "Killed process on port $PORT"
+        fi
+    # Try using ss for modern Linux
+    elif command -v ss &> /dev/null; then
+        local PID=$(ss -tlnp 2>/dev/null | grep ":$PORT " | sed -n 's/.*pid=\([0-9]*\).*/\1/p')
+        if [ ! -z "$PID" ]; then
+            print_warning "Port $PORT is in use by PID $PID, killing it..."
+            kill -9 $PID 2>/dev/null || true
+            sleep 1
+            print_info "Killed process on port $PORT"
+        fi
+    fi
+}
+
 check_postgres() {
     print_header "Checking PostgreSQL"
 
-    if ! command -v psql &> /dev/null; then
-        print_error "PostgreSQL client (psql) not found"
-        exit 1
-    fi
+    # Check if PostgreSQL client is available (optional for basic testing)
+    if command -v psql &> /dev/null && command -v pg_isready &> /dev/null; then
+        if ! pg_isready -h $DB_HOST -p $DB_PORT &> /dev/null; then
+            print_error "PostgreSQL is not running on $DB_HOST:$DB_PORT"
+            print_info "Please start PostgreSQL first"
+            exit 1
+        fi
 
-    if ! pg_isready -h $DB_HOST -p $DB_PORT &> /dev/null; then
-        print_error "PostgreSQL is not running on $DB_HOST:$DB_PORT"
-        print_info "Please start PostgreSQL first"
-        exit 1
-    fi
+        print_info "PostgreSQL is running on $DB_HOST:$DB_PORT"
 
-    print_info "PostgreSQL is running on $DB_HOST:$DB_PORT"
-
-    # Check if database exists
-    if psql -h $DB_HOST -p $DB_PORT -U $DB_USER -lqt | cut -d \| -f 1 | grep -qw $DB_NAME; then
-        print_info "Database '$DB_NAME' exists"
+        # Check if database exists
+        if psql -h $DB_HOST -p $DB_PORT -U $DB_USER -lqt 2>/dev/null | cut -d \| -f 1 | grep -qw $DB_NAME; then
+            print_info "Database '$DB_NAME' exists"
+        else
+            print_warning "Database '$DB_NAME' does not exist"
+            print_info "It will be created automatically when the API starts"
+        fi
     else
-        print_warning "Database '$DB_NAME' does not exist"
-        print_info "It will be created automatically when the API starts"
+        print_warning "PostgreSQL client tools not found, skipping database check"
+        print_info "Make sure PostgreSQL is running on $DB_HOST:$DB_PORT"
     fi
 
     echo ""
@@ -77,6 +112,9 @@ start_api() {
     print_header "Starting FormR API"
 
     cd "$API_DIR"
+
+    # Kill any process using the API port
+    kill_port_process $API_PORT "API"
 
     # Kill existing API process if running
     if [ -f "$API_PID_FILE" ]; then
@@ -116,6 +154,9 @@ start_web() {
     print_header "Starting FormR Web UI"
 
     cd "$WEB_DIR"
+
+    # Kill any process using the Web port
+    kill_port_process $WEB_PORT "Web UI"
 
     # Kill existing web process if running
     if [ -f "$WEB_PID_FILE" ]; then
@@ -227,6 +268,7 @@ show_usage() {
     echo "  full        - Start services, run tests, and open browser (default)"
     echo "  status      - Show service status"
     echo "  logs        - Show service logs"
+    echo "  clean       - Kill any processes using ports $API_PORT and $WEB_PORT"
     echo ""
 }
 
@@ -315,6 +357,14 @@ case "$COMMAND" in
 
     logs)
         show_logs
+        ;;
+
+    clean)
+        print_header "Cleaning Up Ports"
+        kill_port_process $API_PORT "API"
+        kill_port_process $WEB_PORT "Web UI"
+        stop_services
+        print_info "Ports cleaned up"
         ;;
 
     *)
