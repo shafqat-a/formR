@@ -121,9 +121,7 @@ Form designers should be able to manage their form templates over time, includin
 
 - **Form Control**: Represents an individual input element within a form template. Has a type (text, number, dropdown, etc.), position/layout information, label, validation rules, default value, and configuration properties specific to its type.
 
-- **Form Instance**: Represents a specific occurrence of a form being filled out based on a template. Links to the specific template version it was created from (to preserve integrity across template edits), tracks submission status (draft, submitted), submission date/time, and who submitted it.
-
-- **Form Submission Data**: Represents the actual data entered by a user in a form instance. Contains field values for each control in the form, maintains the relationship to the form instance, and preserves data types (text, numbers, dates, file references).
+- **Form Instance**: Represents a specific occurrence of a form being filled out based on a template. Links to the specific template version it was created from (to preserve integrity across template edits), tracks submission status (draft, submitted), submission date/time, and who submitted it. Stores all form field data as a single JSON object for flexibility and simplicity.
 
 - **Control Library Item**: Represents a control type available for use in the designer. Defines the control's appearance, configurable properties, validation capabilities, and data storage format.
 
