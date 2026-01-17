@@ -4,6 +4,7 @@ using FormR.API.Middleware;
 using FormR.Data;
 using FormR.Data.Providers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -67,6 +68,13 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+// Ensure database is created and apply migrations
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<FormBuilderContext>();
+    context.Database.Migrate();
+}
 
 // Configure the HTTP request pipeline
 app.UseErrorHandling();
