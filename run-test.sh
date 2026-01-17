@@ -10,7 +10,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-API_PORT=5000
+API_PORT=5100
 WEB_PORT=3000
 DB_HOST=localhost
 DB_PORT=5400

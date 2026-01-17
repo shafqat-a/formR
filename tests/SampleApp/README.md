@@ -58,7 +58,7 @@ From the repository root:
 FormR Sample Application
 ========================
 
-API Base URL: http://localhost:5000
+API Base URL: http://localhost:5100
 Testing API connectivity...
 
 Test 1: Fetching Control Library...
@@ -98,7 +98,7 @@ You can modify `Program.cs` to:
 **Error: "Make sure the API is running"**
 - Ensure PostgreSQL is running on port 5400
 - Start the API with `dotnet run` in src/FormR.API
-- Check that the API is accessible at http://localhost:5000
+- Check that the API is accessible at http://localhost:5100
 
 **Connection refused**
 - Verify PostgreSQL is running: `pg_isready -h localhost -p 5400`

@@ -4,7 +4,7 @@ using System.Text.Json;
 Console.WriteLine("FormR Sample Application");
 Console.WriteLine("========================\n");
 
-var apiBaseUrl = Environment.GetEnvironmentVariable("API_URL") ?? "http://localhost:5000";
+var apiBaseUrl = Environment.GetEnvironmentVariable("API_URL") ?? "http://localhost:5100";
 var httpClient = new HttpClient { BaseAddress = new Uri(apiBaseUrl) };
 
 Console.WriteLine($"API Base URL: {apiBaseUrl}");
