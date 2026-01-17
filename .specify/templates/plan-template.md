@@ -31,7 +31,39 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+### GitHub Workflow Compliance
+
+- [ ] GitHub issue created for this feature via `gh issue create`
+- [ ] Issue approved by stakeholders
+- [ ] Issue assigned to implementer
+- [ ] Feature branch named: `[issue-number]-[brief-description]`
+
+### Test-First Development Compliance
+
+- [ ] Test plan documented in GitHub issue
+- [ ] Test strategy covers acceptance criteria, edge cases, and error scenarios
+- [ ] Tests will be written before implementation begins
+- [ ] Tests will be verified to fail before implementation proceeds
+
+### Traceability Compliance
+
+- [ ] Issue number: [ISSUE_NUMBER]
+- [ ] Issue link: [ISSUE_URL]
+- [ ] Commit messages will reference issue number
+- [ ] PR will link back to originating issue
+
+### Quality Gates Compliance
+
+- [ ] CI/CD pipeline defined for automated testing
+- [ ] Code quality tools configured (linting, formatting, type checking)
+- [ ] Test coverage thresholds defined
+- [ ] Security scanning enabled
+
+**Justification for Complexity** (if any constitutional principle violations):
+
+| Violation | Why Needed | Simpler Alternative Rejected Because |
+|-----------|------------|-------------------------------------|
+| [None] | [N/A] | [N/A] |
 
 ## Project Structure
 
@@ -94,11 +126,11 @@ ios/ or android/
 **Structure Decision**: [Document the selected structure and reference the real
 directories captured above]
 
-## Complexity Tracking
+## Additional Complexity Tracking
 
-> **Fill ONLY if Constitution Check has violations that must be justified**
+> **Fill ONLY for complexity beyond constitutional violations (already documented in Constitution Check section)**
 
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
-| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |
+| Design Decision | Why Needed | Simpler Alternative Rejected Because |
+|-----------------|------------|-------------------------------------|
+| [e.g., Microservices architecture] | [current need] | [why monolith insufficient] |
+| [e.g., Event sourcing] | [specific problem] | [why CRUD insufficient] |
