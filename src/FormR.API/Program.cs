@@ -1,8 +1,14 @@
 using System.Text;
 using AspNetCoreRateLimit;
+using FluentValidation;
 using FormR.API.Middleware;
+using FormR.API.Services;
+using FormR.Core.Interfaces;
+using FormR.Core.Models;
+using FormR.Core.Validation;
 using FormR.Data;
 using FormR.Data.Providers;
+using FormR.Data.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -11,6 +17,14 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container
 builder.Services.AddControllers();
+
+// Register validators
+builder.Services.AddScoped<IValidator<FormTemplate>, TemplateValidator>();
+builder.Services.AddScoped<IValidator<FormControl>, ControlValidator>();
+
+// Register repositories and services
+builder.Services.AddScoped<IFormRepository, FormRepository>();
+builder.Services.AddScoped<ITemplateService, TemplateService>();
 
 // Configure database provider pattern
 builder.Services.AddSingleton<IDataProvider, PostgreSqlProvider>();
