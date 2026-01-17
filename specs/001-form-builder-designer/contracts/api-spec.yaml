@@ -1,0 +1,997 @@
+openapi: 3.0.3
+info:
+  title: FormR API
+  description: |
+    REST API for FormR visual form builder. Supports template creation, instantiation, and data submission.
+
+    **Related Documentation**:
+    - [Data Model](../data-model.md)
+    - [Quickstart Guide](../quickstart.md)
+    - [Feature Specification](../spec.md)
+  version: 1.0.0
+  contact:
+    name: FormR Team
+    url: https://github.com/shafqat-a/formR
+
+servers:
+  - url: https://api.formr.example.com/v1
+    description: Production
+  - url: https://staging-api.formr.example.com/v1
+    description: Staging
+  - url: http://localhost:5000/v1
+    description: Local Development
+
+tags:
+  - name: Templates
+    description: Form template management
+  - name: Forms
+    description: Form instance creation and management
+  - name: Submissions
+    description: Form data submission and retrieval
+  - name: Controls
+    description: Control library and metadata
+
+paths:
+  /templates:
+    get:
+      tags: [Templates]
+      summary: List form templates
+      description: Retrieve all form templates for the authenticated tenant with optional filtering
+      operationId: listTemplates
+      parameters:
+        - name: folderId
+          in: query
+          description: Filter by folder ID
+          schema:
+            type: string
+            format: uuid
+        - name: search
+          in: query
+          description: Search templates by name or description
+          schema:
+            type: string
+        - name: page
+          in: query
+          description: Page number (1-indexed)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          description: Items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: List of templates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  templates:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TemplateListItem'
+                  pagination:
+                    $ref: '#/components/schemas/PaginationInfo'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      tags: [Templates]
+      summary: Create form template
+      description: Create a new form template with controls
+      operationId: createTemplate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTemplateRequest'
+      responses:
+        '201':
+          description: Template created successfully
+          headers:
+            Location:
+              description: URL of created template
+              schema:
+                type: string
+                format: uri
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /templates/{templateId}:
+    get:
+      tags: [Templates]
+      summary: Get template details
+      description: Retrieve complete template with all controls and configuration
+      operationId: getTemplate
+      parameters:
+        - $ref: '#/components/parameters/TemplateId'
+        - name: version
+          in: query
+          description: Specific version (defaults to latest)
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Template details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    put:
+      tags: [Templates]
+      summary: Update template
+      description: |
+        Update an existing template. If the template has submissions, a new version is created automatically.
+        Original template remains unchanged to preserve submission integrity.
+      operationId: updateTemplate
+      parameters:
+        - $ref: '#/components/parameters/TemplateId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTemplateRequest'
+      responses:
+        '200':
+          description: Template updated (no versioning)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateDetail'
+        '201':
+          description: New version created (had submissions)
+          headers:
+            Location:
+              description: URL of new template version
+              schema:
+                type: string
+                format: uri
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      tags: [Templates]
+      summary: Delete template
+      description: |
+        Soft delete a template. If the template has submissions, deletion is prevented unless
+        force parameter is provided with confirmation.
+      operationId: deleteTemplate
+      parameters:
+        - $ref: '#/components/parameters/TemplateId'
+        - name: force
+          in: query
+          description: Force delete template with submissions
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '204':
+          description: Template deleted successfully
+        '400':
+          description: Cannot delete template with submissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: TEMPLATE_HAS_SUBMISSIONS
+                  message: Cannot delete template with existing submissions
+                  submissionCount: 42
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /templates/{templateId}/duplicate:
+    post:
+      tags: [Templates]
+      summary: Duplicate template
+      description: Create a copy of an existing template with a new name
+      operationId: duplicateTemplate
+      parameters:
+        - $ref: '#/components/parameters/TemplateId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  description: Name for duplicated template
+              example:
+                name: "Customer Feedback Form (Copy)"
+      responses:
+        '201':
+          description: Template duplicated successfully
+          headers:
+            Location:
+              description: URL of duplicated template
+              schema:
+                type: string
+                format: uri
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /forms:
+    post:
+      tags: [Forms]
+      summary: Create form instance
+      description: Instantiate a template to create a fillable form
+      operationId: createFormInstance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [templateId]
+              properties:
+                templateId:
+                  type: string
+                  format: uuid
+                  description: Template to instantiate
+                templateVersion:
+                  type: integer
+                  minimum: 1
+                  description: Specific version (defaults to latest)
+              example:
+                templateId: "550e8400-e29b-41d4-a716-446655440000"
+                templateVersion: 2
+      responses:
+        '201':
+          description: Form instance created
+          headers:
+            Location:
+              description: URL of created form instance
+              schema:
+                type: string
+                format: uri
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormInstanceDetail'
+        '404':
+          description: Template not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /forms/{instanceId}:
+    get:
+      tags: [Forms]
+      summary: Get form instance
+      description: Retrieve form instance with template and submission data
+      operationId: getFormInstance
+      parameters:
+        - $ref: '#/components/parameters/InstanceId'
+      responses:
+        '200':
+          description: Form instance details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormInstanceDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /forms/{instanceId}/submit:
+    post:
+      tags: [Forms]
+      summary: Submit form data
+      description: |
+        Submit form field data. Validates all fields against template rules before saving.
+        Updates instance status to Submitted.
+      operationId: submitForm
+      parameters:
+        - $ref: '#/components/parameters/InstanceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FormSubmissionRequest'
+      responses:
+        '200':
+          description: Form submitted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  instanceId:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum: [Submitted]
+                  submittedDate:
+                    type: string
+                    format: date-time
+                  submissionCount:
+                    type: integer
+                    description: Number of fields submitted
+              example:
+                instanceId: "660e9500-f39c-52e5-b827-557766551111"
+                status: "Submitted"
+                submittedDate: "2026-01-18T14:30:00Z"
+                submissionCount: 12
+        '400':
+          description: Validation errors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Form already submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: ALREADY_SUBMITTED
+                  message: Form instance already submitted
+                  submittedDate: "2026-01-17T10:00:00Z"
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /submissions:
+    get:
+      tags: [Submissions]
+      summary: List form submissions
+      description: Retrieve submitted form data with filtering and pagination
+      operationId: listSubmissions
+      parameters:
+        - name: templateId
+          in: query
+          description: Filter by template
+          schema:
+            type: string
+            format: uuid
+        - name: submittedAfter
+          in: query
+          description: Filter submissions after date (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: submittedBefore
+          in: query
+          description: Filter submissions before date (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: submittedBy
+          in: query
+          description: Filter by submitter
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: List of submissions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  submissions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SubmissionListItem'
+                  pagination:
+                    $ref: '#/components/schemas/PaginationInfo'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /submissions/{instanceId}:
+    get:
+      tags: [Submissions]
+      summary: Get submission details
+      description: Retrieve complete submission data for a form instance
+      operationId: getSubmission
+      parameters:
+        - $ref: '#/components/parameters/InstanceId'
+      responses:
+        '200':
+          description: Submission details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /controls:
+    get:
+      tags: [Controls]
+      summary: Get control library
+      description: Retrieve available control types for form designer
+      operationId: getControlLibrary
+      parameters:
+        - name: category
+          in: query
+          description: Filter by category
+          schema:
+            $ref: '#/components/schemas/ControlCategory'
+      responses:
+        '200':
+          description: Control library
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  controls:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ControlLibraryItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  parameters:
+    TemplateId:
+      name: templateId
+      in: path
+      required: true
+      description: Template unique identifier
+      schema:
+        type: string
+        format: uuid
+
+    InstanceId:
+      name: instanceId
+      in: path
+      required: true
+      description: Form instance unique identifier
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    TemplateListItem:
+      type: object
+      required: [id, name, version, createdDate, modifiedDate]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        version:
+          type: integer
+          minimum: 1
+        controlCount:
+          type: integer
+          description: Number of controls in template
+        submissionCount:
+          type: integer
+          description: Number of submissions using this template version
+        createdDate:
+          type: string
+          format: date-time
+        modifiedDate:
+          type: string
+          format: date-time
+        thumbnailUrl:
+          type: string
+          format: uri
+          description: Preview image URL
+
+    TemplateDetail:
+      type: object
+      required: [id, name, version, controls, createdDate, modifiedDate]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        version:
+          type: integer
+          minimum: 1
+        baseTemplateId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Original template if this is a version
+        controls:
+          type: array
+          items:
+            $ref: '#/components/schemas/FormControl'
+        createdDate:
+          type: string
+          format: date-time
+        modifiedDate:
+          type: string
+          format: date-time
+
+    FormControl:
+      type: object
+      required: [id, type, label, position, order, isRequired]
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          $ref: '#/components/schemas/ControlType'
+        label:
+          type: string
+          maxLength: 200
+        placeholder:
+          type: string
+          maxLength: 200
+        defaultValue:
+          type: string
+        isRequired:
+          type: boolean
+        validationRules:
+          type: object
+          description: JSON validation configuration
+          example:
+            minLength: 5
+            maxLength: 100
+            regex: "^[a-zA-Z0-9]+$"
+        position:
+          type: object
+          required: [x, y]
+          properties:
+            x:
+              type: integer
+            y:
+              type: integer
+            width:
+              type: integer
+            height:
+              type: integer
+            zIndex:
+              type: integer
+        properties:
+          type: object
+          description: Control-specific configuration
+          example:
+            maxLength: 100
+            autocomplete: "name"
+        parentControlId:
+          type: string
+          format: uuid
+          nullable: true
+        order:
+          type: integer
+
+    ControlType:
+      type: string
+      enum:
+        - TextInput
+        - MultilineText
+        - NumberInput
+        - EmailInput
+        - PhoneInput
+        - Dropdown
+        - Checkbox
+        - RadioGroup
+        - MultiSelect
+        - DatePicker
+        - TimePicker
+        - DateRangePicker
+        - FileUpload
+        - RichTextEditor
+        - RatingScale
+        - Slider
+        - SignaturePad
+        - Section
+        - ColumnContainer
+        - TabPanel
+        - Accordion
+
+    ControlCategory:
+      type: string
+      enum:
+        - BasicInputs
+        - SelectionControls
+        - DateTimeControls
+        - AdvancedControls
+        - LayoutControls
+        - SpecialControls
+
+    CreateTemplateRequest:
+      type: object
+      required: [name, controls]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 1000
+        controls:
+          type: array
+          items:
+            $ref: '#/components/schemas/FormControl'
+      example:
+        name: "Customer Feedback Form"
+        description: "Collect customer satisfaction ratings"
+        controls:
+          - id: "c1"
+            type: "TextInput"
+            label: "Your Name"
+            placeholder: "Enter your full name"
+            isRequired: true
+            position: {x: 0, y: 0, width: 400, height: 50}
+            order: 1
+
+    UpdateTemplateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 1000
+        controls:
+          type: array
+          items:
+            $ref: '#/components/schemas/FormControl'
+
+    FormInstanceDetail:
+      type: object
+      required: [id, templateId, templateVersion, status, createdDate]
+      properties:
+        id:
+          type: string
+          format: uuid
+        templateId:
+          type: string
+          format: uuid
+        templateVersion:
+          type: integer
+        template:
+          $ref: '#/components/schemas/TemplateDetail'
+        status:
+          type: string
+          enum: [Draft, Submitted]
+        submissionData:
+          type: object
+          nullable: true
+          description: Form field data as JSON object (controlId -> value mapping)
+          example:
+            "c1": {"value": "John Doe", "type": "string"}
+            "c2": {"value": 42, "type": "number"}
+            "c3": {"value": "2026-01-18T10:00:00Z", "type": "date"}
+        createdDate:
+          type: string
+          format: date-time
+        submittedDate:
+          type: string
+          format: date-time
+          nullable: true
+        submittedBy:
+          type: string
+
+    FormSubmissionRequest:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          description: Form field values as key-value pairs (controlId -> {value, type})
+          additionalProperties:
+            type: object
+            required: [value, type]
+            properties:
+              value:
+                description: Field value (string, number, boolean, object, or array)
+              type:
+                type: string
+                enum: [string, number, date, boolean, file, array, object]
+        submittedBy:
+          type: string
+          description: Optional submitter identifier
+      example:
+        data:
+          "control-id-1":
+            value: "John Doe"
+            type: "string"
+          "control-id-2":
+            value: 42
+            type: "number"
+          "control-id-3":
+            value: true
+            type: "boolean"
+          "control-id-4":
+            value:
+              fileName: "resume.pdf"
+              fileUrl: "https://storage.example.com/files/abc123"
+              fileSizeBytes: 102400
+              mimeType: "application/pdf"
+            type: "file"
+        submittedBy: "user@example.com"
+
+    SubmissionListItem:
+      type: object
+      required: [instanceId, templateId, templateName, submittedDate]
+      properties:
+        instanceId:
+          type: string
+          format: uuid
+        templateId:
+          type: string
+          format: uuid
+        templateName:
+          type: string
+        templateVersion:
+          type: integer
+        submittedDate:
+          type: string
+          format: date-time
+        submittedBy:
+          type: string
+        fieldCount:
+          type: integer
+
+    SubmissionDetail:
+      type: object
+      required: [instanceId, template, submissionData, submittedDate]
+      properties:
+        instanceId:
+          type: string
+          format: uuid
+        template:
+          $ref: '#/components/schemas/TemplateDetail'
+        submissionData:
+          type: object
+          description: Form field values as JSON object (controlId -> {value, type})
+          example:
+            "control-1":
+              value: "John Doe"
+              type: "string"
+            "control-2":
+              value: 42
+              type: "number"
+            "control-3":
+              value:
+                fileName: "document.pdf"
+                fileUrl: "https://storage.example.com/files/xyz789"
+              type: "file"
+        submittedDate:
+          type: string
+          format: date-time
+        submittedBy:
+          type: string
+
+    ControlLibraryItem:
+      type: object
+      required: [type, category, icon]
+      properties:
+        type:
+          type: string
+        category:
+          $ref: '#/components/schemas/ControlCategory'
+        icon:
+          type: string
+        configSchema:
+          type: object
+          description: JSON Schema for control configuration
+        defaultProps:
+          type: object
+          description: Default properties when added to canvas
+
+    PaginationInfo:
+      type: object
+      required: [page, pageSize, totalItems, totalPages]
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+        totalItems:
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+        hasNext:
+          type: boolean
+        hasPrevious:
+          type: boolean
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+
+    ValidationErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, validationErrors]
+          properties:
+            code:
+              type: string
+              example: "VALIDATION_FAILED"
+            message:
+              type: string
+            validationErrors:
+              type: array
+              items:
+                type: object
+                required: [field, message]
+                properties:
+                  field:
+                    type: string
+                    description: Field path (e.g., "submissions[0].value")
+                  message:
+                    type: string
+                  code:
+                    type: string
+                    example: "REQUIRED_FIELD_MISSING"
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: "UNAUTHORIZED"
+              message: "Authentication required"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: "NOT_FOUND"
+              message: "Template not found"
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: "INTERNAL_ERROR"
+              message: "An unexpected error occurred"
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - BearerAuth: []
