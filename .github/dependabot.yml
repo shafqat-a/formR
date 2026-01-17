@@ -1,0 +1,38 @@
+version: 2
+updates:
+  # Enable version updates for NuGet (.NET)
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "shafqat"
+    labels:
+      - "dependencies"
+      - "dotnet"
+
+  # Enable version updates for npm (Frontend)
+  - package-ecosystem: "npm"
+    directory: "/src/FormR.Web"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "shafqat"
+    labels:
+      - "dependencies"
+      - "frontend"
+
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
